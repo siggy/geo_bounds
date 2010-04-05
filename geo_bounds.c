@@ -50,16 +50,16 @@ _get_bounding_box(
     double center_lat_rad = 0;
     double center_lon_rad = 0;
 
-	double center_lat_rad_sin = 0;
+    double center_lat_rad_sin = 0;
 
     double earth_deg      = 0;
     double earth_rad      = 0;
 
-	double earth_rad_cos  = 0;
+    double earth_rad_cos  = 0;
 
-	double center_lat_sin_x_earth_cos = 0;
-	double center_lat_cos_x_earth_sin_x_bearing_sw_cos = 0;
-	
+    double center_lat_sin_x_earth_cos = 0;
+    double center_lat_cos_x_earth_sin_x_bearing_sw_cos = 0;
+    
     double coef_1 = 0;
     double coef_2 = 0;
 
