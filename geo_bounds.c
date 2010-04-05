@@ -25,8 +25,12 @@ _get_bounding_box(
  * Constants
  */
 
-#define PI           3.14159265
-#define EARTH_RADIUS 6371.0
+#define EARTH_RADIUS     6371.0
+
+#define BEARING_SW_COS   -0.7071067811 /* cos(225 deg) */
+
+#define DEG_TO_RAD_COEF  0.0174532925 /* (3.14159265 / 180) */
+#define RAD_TO_DEG_COEF  57.2957795785 /* (180 / 3.14159265) */
 
 /*
  * Static function defintions
@@ -43,19 +47,21 @@ _get_bounding_box(
     double* lon_e_deg
     )
 {
-    double lat_s_rad      = 0;
-    double lon_w_rad      = 0;
-    double lat_n_rad      = 0;
-    double lon_e_rad      = 0;
-
     double center_lat_rad = 0;
     double center_lon_rad = 0;
 
-    double bearing_sw     = 0;
-    double bearing_ne     = 0;
+	double center_lat_rad_sin = 0;
 
     double earth_deg      = 0;
     double earth_rad      = 0;
+
+	double earth_rad_cos  = 0;
+
+	double center_lat_sin_x_earth_cos = 0;
+	double center_lat_cos_x_earth_sin_x_bearing_sw_cos = 0;
+	
+    double coef_1 = 0;
+    double coef_2 = 0;
 
     if ( (lat_s_deg == NULL) ||
         (lon_w_deg == NULL) ||
@@ -66,41 +72,39 @@ _get_bounding_box(
         return -1;
     }
 
-    center_lat_rad = center_lat * PI / 180;
-    center_lon_rad = center_lon * PI / 180;
+    center_lat_rad = center_lat * DEG_TO_RAD_COEF;
+    center_lon_rad = center_lon * DEG_TO_RAD_COEF;
 
-    bearing_sw = 5*PI/4;
-    bearing_ne = PI/4;
+    center_lat_rad_sin = sin(center_lat_rad);
 
     earth_rad = radius / EARTH_RADIUS;
 
-    lat_s_rad = asin(
-                    sin(center_lat_rad) * cos(earth_rad) + 
-                    cos(center_lat_rad) * sin(earth_rad) * cos(bearing_sw)
-                    );
+    earth_rad_cos = cos(earth_rad);
 
-    lon_w_rad = center_lon_rad +
-                atan2(
-                    sin(bearing_sw) * sin(earth_rad) * cos(center_lat_rad),
-                    cos(earth_rad) - sin(center_lat_rad) * sin(lat_s_rad)
-                    );
+    center_lat_sin_x_earth_cos = center_lat_rad_sin * earth_rad_cos;
 
-    lat_n_rad = asin(
-                    sin(center_lat_rad) * cos(earth_rad) + 
-                    cos(center_lat_rad) * sin(earth_rad) * cos(bearing_ne)
-                    );
+    center_lat_cos_x_earth_sin_x_bearing_sw_cos = cos(center_lat_rad) * sin(earth_rad) * BEARING_SW_COS;
 
-    lon_e_rad = center_lon_rad +
-                atan2(
-                    sin(bearing_ne) * sin(earth_rad) * cos(center_lat_rad),
-                    cos(earth_rad) - sin(center_lat_rad) * sin(lat_n_rad)
-                    );
+    coef_1 = center_lat_sin_x_earth_cos + center_lat_cos_x_earth_sin_x_bearing_sw_cos;
+    coef_2 = center_lat_sin_x_earth_cos - center_lat_cos_x_earth_sin_x_bearing_sw_cos;
 
-    *lat_s_deg = lat_s_rad * 180 / PI;
-    *lon_w_deg = lon_w_rad * 180 / PI;
+    *lat_s_deg = RAD_TO_DEG_COEF * asin(coef_1);
 
-    *lat_n_deg = lat_n_rad * 180 / PI;
-    *lon_e_deg = lon_e_rad * 180 / PI;
+    *lon_w_deg = RAD_TO_DEG_COEF *
+                (center_lon_rad +
+                 atan2(
+                    center_lat_cos_x_earth_sin_x_bearing_sw_cos,
+                    earth_rad_cos - center_lat_rad_sin * coef_1
+                    ));
+
+    *lat_n_deg = RAD_TO_DEG_COEF * asin(coef_2);
+
+    *lon_e_deg = RAD_TO_DEG_COEF *
+                 (center_lon_rad +
+                  atan2(
+                    -1.0 * center_lat_cos_x_earth_sin_x_bearing_sw_cos,
+                    earth_rad_cos - center_lat_rad_sin * coef_2
+                    ));
 
     return 0;
 }
