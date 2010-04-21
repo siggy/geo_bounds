@@ -211,7 +211,7 @@ int main(int argc, char** argv)
  * Ruby bindings
  */
 
-#include "../ruby-1.8.7-p174/ruby.h"
+#include "ruby.h"
 
 static VALUE cGeoBounds;
 
