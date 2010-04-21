@@ -1,4 +1,11 @@
 /*
+geo_bounds.c
+
+Efficiently convert coordinate and radius to a bounding box,
+using the Inverse Haversine formula.
+*/
+
+/*
  * Dependencies
  */
 
@@ -25,12 +32,12 @@ _get_bounding_box(
  * Constants
  */
 
-#define EARTH_RADIUS     6371.0
+#define EARTH_RADIUS     6371.0 /* km */
 
-#define BEARING_SW_COS   -0.7071067811 /* cos(225 deg) */
+#define BEARING_SW_COS   -0.7071067812 /* cos(225 deg) */
 
 #define DEG_TO_RAD_COEF  0.0174532925 /* (3.14159265 / 180) */
-#define RAD_TO_DEG_COEF  57.2957795785 /* (180 / 3.14159265) */
+#define RAD_TO_DEG_COEF  57.295779579 /* (180 / 3.14159265) */
 
 /*
  * Static function defintions
@@ -63,6 +70,7 @@ _get_bounding_box(
     double coef_1 = 0;
     double coef_2 = 0;
 
+    /* check pointers */
     if ( (lat_s_deg == NULL) ||
         (lon_w_deg == NULL) ||
         (lat_n_deg == NULL) ||
@@ -72,6 +80,17 @@ _get_bounding_box(
         return -1;
     }
 
+    /* check bounds */
+    if ( (center_lat < -90) ||
+        (center_lat > 90) ||
+        (center_lon < -180) ||
+        (center_lon > 1800)
+        )
+    {
+        return -1;
+    }
+
+    /* calculate coefficients */
     center_lat_rad = center_lat * DEG_TO_RAD_COEF;
     center_lon_rad = center_lon * DEG_TO_RAD_COEF;
 
@@ -88,6 +107,7 @@ _get_bounding_box(
     coef_1 = center_lat_sin_x_earth_cos + center_lat_cos_x_earth_sin_x_bearing_sw_cos;
     coef_2 = center_lat_sin_x_earth_cos - center_lat_cos_x_earth_sin_x_bearing_sw_cos;
 
+    /* Inverse Haversine */
     *lat_s_deg = RAD_TO_DEG_COEF * asin(coef_1);
 
     *lon_w_deg = RAD_TO_DEG_COEF *
@@ -105,6 +125,25 @@ _get_bounding_box(
                     -1.0 * center_lat_cos_x_earth_sin_x_bearing_sw_cos,
                     earth_rad_cos - center_lat_rad_sin * coef_2
                     ));
+    
+    /* check bounds on longitudes */
+    if (*lon_w_deg > 180)
+    {
+        *lon_w_deg -= 360;
+    }
+    else if (*lon_w_deg < -180)
+    {
+        *lon_w_deg += 360;
+    }
+
+    if (*lon_e_deg > 180)
+    {
+        *lon_e_deg -= 360;
+    }
+    else if (*lon_e_deg < -180)
+    {
+        *lon_e_deg += 360;
+    }
 
     return 0;
 }
@@ -113,13 +152,10 @@ _get_bounding_box(
  * Main - for testing
  */
 
-#define CENTER_LAT        37.7749295
-#define CENTER_LON        -122.4194155
-
-int main(int argc, char** argv)
+int test_coord(double lat, double lon)
 {
     int    error     = 0;
-
+    
     double lat_s_deg = 0;
     double lon_w_deg = 0;
     double lat_n_deg = 0;
@@ -130,52 +166,43 @@ int main(int argc, char** argv)
     for (i = .01; i <= 1000.0; i = i * 10.0)
     {
         error = _get_bounding_box(
-            CENTER_LAT,
-            CENTER_LON,
+            lat,
+            lon,
             i,
             &lat_s_deg,
             &lon_w_deg,
             &lat_n_deg,
             &lon_e_deg
             );
-
-        printf("Bounding box for (%3.6f, %3.6f) with distance %3.6f km:\n(%3.6f, %3.6f)\n(%3.6f, %3.6f)\n\n",
-            CENTER_LAT,
-            CENTER_LON,
-            i,
-            lat_s_deg,
-            lon_w_deg,
-            lat_n_deg,
-            lon_e_deg
-            );
+        if (error == 0)
+        {
+            printf("Bounding box for (%3.6f, %3.6f) with distance %3.6f km:\n(%3.6f, %3.6f)\n(%3.6f, %3.6f)\n\n",
+                lat,
+                lon,
+                i,
+                lat_s_deg,
+                lon_w_deg,
+                lat_n_deg,
+                lon_e_deg
+                );
+        }
+        else
+        {
+            printf("Error =  %d\n\n", error);
+        }
     }
 
-    /* The preceding code should generate this reference output:
+    return error;
+}
 
-        Bounding box for (37.774929, -122.419416) with distance 0.010000 km:
-        (37.774866, -122.419496)
-        (37.774993, -122.419335)
+int main(int argc, char** argv)
+{
+    int    error     = 0;
 
-        Bounding box for (37.774929, -122.419416) with distance 0.100000 km:
-        (37.774294, -122.420220)
-        (37.775565, -122.418611)
-
-        Bounding box for (37.774929, -122.419416) with distance 1.000000 km:
-        (37.768570, -122.427460)
-        (37.781288, -122.411370)
-
-        Bounding box for (37.774929, -122.419416) with distance 10.000000 km:
-        (37.711311, -122.499799)
-        (37.838494, -122.338894)
-
-        Bounding box for (37.774929, -122.419416) with distance 100.000000 km:
-        (37.136314, -123.217094)
-        (38.408074, -121.607896)
-
-        Bounding box for (37.774929, -122.419416) with distance 1000.000000 km:
-        (31.175618, -129.842217)
-        (43.820306, -113.607232)
-    */
+    /* the following code should generate output matching the reference file */
+    error = test_coord(37.7749295, -122.4194155);
+    error = test_coord(-90, -180);
+    error = test_coord(0, -180);
 
     return error;
 }
@@ -184,9 +211,24 @@ int main(int argc, char** argv)
  * Ruby bindings
  */
 
-#include "ruby.h"
+#include "../ruby-1.8.7-p174/ruby.h"
 
 static VALUE cGeoBounds;
+
+/*
+ * get_geo_bounds()
+ *
+ * Convert latitude, longitude, and radius to a bounding box.
+ *
+ * Parameters:
+ *  center_lat: latitude of center coordinate, in decimal degrees
+ *  center_lon: longitude of center coordinate, in decimal degrees
+ *  radius:     radius of bounding box, in kilometers
+ *
+ * Output:
+ *  4-element array of bounding box coordinates, in decimal degrees:
+ *   [south, west, north, east]
+ */
 
 static VALUE
 get_geo_bounds(
@@ -221,14 +263,18 @@ get_geo_bounds(
         &lat_n_deg,
         &lon_e_deg
         );
+    if (error == 0)
+    {
+        return rb_ary_new3(
+            4,
+            rb_float_new(lat_s_deg),
+            rb_float_new(lon_w_deg),
+            rb_float_new(lat_n_deg),
+            rb_float_new(lon_e_deg)
+            );
+    }
 
-    return rb_ary_new3(
-        4,
-        rb_float_new(lat_s_deg),
-        rb_float_new(lon_w_deg),
-        rb_float_new(lat_n_deg),
-        rb_float_new(lon_e_deg)
-        );
+    return 0;
 }
 
 void Init_GeoBounds()
