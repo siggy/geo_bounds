@@ -145,11 +145,11 @@ _get_bounding_box(
         *lon_e_deg += 360;
     }
 
-	/* round to 7 decimals */
-	*lat_s_deg = floor(*lat_s_deg * 10000000 + 0.5) / 10000000;
-	*lon_w_deg = floor(*lon_w_deg * 10000000 + 0.5) / 10000000;
-	*lat_n_deg = floor(*lat_n_deg * 10000000 + 0.5) / 10000000;
-	*lon_e_deg = floor(*lon_e_deg * 10000000 + 0.5) / 10000000;
+    /* round to 7 decimals */
+    *lat_s_deg = floor(*lat_s_deg * 10000000 + 0.5) / 10000000;
+    *lon_w_deg = floor(*lon_w_deg * 10000000 + 0.5) / 10000000;
+    *lat_n_deg = floor(*lat_n_deg * 10000000 + 0.5) / 10000000;
+    *lon_e_deg = floor(*lon_e_deg * 10000000 + 0.5) / 10000000;
 
     return 0;
 }
