@@ -31,7 +31,7 @@ class GeoboundsController < ApplicationController
         :type => "Polygon",
         :coordinates =>
         [[
-          [lon_w, lat_s], [lon_w, lat_n], [lon_e, lat_n], [lon_e, lat_s]
+          [lon_w, lat_s], [lon_w, lat_n], [lon_e, lat_n], [lon_e, lat_s], [lon_w, lat_s]
         ]]
       }
     }.to_json
