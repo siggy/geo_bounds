@@ -145,6 +145,12 @@ _get_bounding_box(
         *lon_e_deg += 360;
     }
 
+	/* round to 7 decimals */
+	*lat_s_deg = floor(*lat_s_deg * 10000000 + 0.5) / 10000000;
+	*lon_w_deg = floor(*lon_w_deg * 10000000 + 0.5) / 10000000;
+	*lat_n_deg = floor(*lat_n_deg * 10000000 + 0.5) / 10000000;
+	*lon_e_deg = floor(*lon_e_deg * 10000000 + 0.5) / 10000000;
+
     return 0;
 }
 
@@ -176,7 +182,7 @@ int test_coord(double lat, double lon)
             );
         if (error == 0)
         {
-            printf("Bounding box for (%3.6f, %3.6f) with distance %3.6f km:\n(%3.6f, %3.6f)\n(%3.6f, %3.6f)\n\n",
+            printf("Bounding box for (%3.7f, %3.7f) with distance %3.7f km:\n(%3.7f, %3.7f)\n(%3.7f, %3.7f)\n\n",
                 lat,
                 lon,
                 i,
@@ -207,11 +213,13 @@ int main(int argc, char** argv)
     return error;
 }
 
+#if 1
+
 /*
  * Ruby bindings
  */
 
-#include "ruby.h"
+#include "../ruby-1.8.7-p174/ruby.h"
 
 static VALUE cGeoBounds;
 
@@ -282,3 +290,5 @@ void Init_GeoBounds()
     cGeoBounds = rb_define_class("GeoBounds", rb_cObject);
     rb_define_method(cGeoBounds, "get_geo_bounds", get_geo_bounds, 3);
 }
+
+#endif

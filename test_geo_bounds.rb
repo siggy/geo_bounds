@@ -8,9 +8,9 @@ def test_coord(lat, lon)
     bounds = gb.get_geo_bounds(lat, lon, distance)
 
     if (bounds != false)
-      print "Bounding box for (%3.6f, %3.6f) with distance %3.6f km:\n(%3.6f, %3.6f)\n(%3.6f, %3.6f)\n\n" % [lat, lon, distance, bounds[0], bounds[1], bounds[2], bounds[3]]
+      print "Bounding box for (%3.7f, %3.7f) with distance %3.7f km:\n(%3.7f, %3.7f)\n(%3.7f, %3.7f)\n\n" % [lat, lon, distance, bounds[0], bounds[1], bounds[2], bounds[3]]
     else
-      print "Error for (%3.6f, %3.6f) with distance %3.6f km\n\n" % [lat, lon, distance]
+      print "Error for (%3.7f, %3.7f) with distance %3.7f km\n\n" % [lat, lon, distance]
     end
 
     distance = distance * 10
