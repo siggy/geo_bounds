@@ -155,7 +155,7 @@ _get_bounding_box(
 }
 
 /*
- * Main - for testing
+ * Testing
  */
 
 int test_coord(double lat, double lon)
@@ -213,13 +213,11 @@ int main(int argc, char** argv)
     return error;
 }
 
-#if 1
-
 /*
  * Ruby bindings
  */
 
-#include "../ruby-1.8.7-p174/ruby.h"
+#include "ruby.h"
 
 static VALUE cGeoBounds;
 
@@ -290,5 +288,3 @@ void Init_GeoBounds()
     cGeoBounds = rb_define_class("GeoBounds", rb_cObject);
     rb_define_method(cGeoBounds, "get_geo_bounds", get_geo_bounds, 3);
 }
-
-#endif
