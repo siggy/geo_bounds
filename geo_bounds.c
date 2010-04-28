@@ -199,7 +199,7 @@ _get_bounding_box(
     if ( (center_lat < -90) ||
         (center_lat > 90) ||
         (center_lon < -180) ||
-        (center_lon > 1800)
+        (center_lon > 180)
         )
     {
         return -1;
