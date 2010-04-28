@@ -3,6 +3,10 @@ geo_bounds.c
 
 Efficiently convert coordinate and radius to a bounding box,
 using the Inverse Haversine formula.
+
+Includes utility functions for converting to and from Morton
+numbers (for Z-order curves), and calculating Morton distances.
+
 */
 
 /*
@@ -12,10 +16,31 @@ using the Inverse Haversine formula.
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <limits.h>
 
 /*
  * Static function declarations
  */
+
+static unsigned long long
+_get_morton_distance(
+    unsigned long long morton_a,
+    unsigned long long morton_b
+    );
+
+static int
+_morton_to_latlon(
+    unsigned long long morton_number,
+    double*            lat,
+    double*            lon
+    );
+
+static int
+_latlon_to_morton(
+    double              lat,
+    double              lon,
+    unsigned long long* morton_number
+    );
 
 static int
 _get_bounding_box(
@@ -39,9 +64,99 @@ _get_bounding_box(
 #define DEG_TO_RAD_COEF  0.0174532925 /* (3.14159265 / 180) */
 #define RAD_TO_DEG_COEF  57.295779579 /* (180 / 3.14159265) */
 
+#define X_MASK 0x5555555555555555LLU
+#define Y_MASK 0xaaaaaaaaaaaaaaaaLLU
+
+/* avoid 'incompatible implicit declaration' warning */
+long long int llabs(long long int num);
+
 /*
  * Static function defintions
  */
+
+static unsigned long long
+_get_morton_distance(
+    unsigned long long morton_a,
+    unsigned long long morton_b
+    )
+{
+    return (llabs((morton_a & X_MASK) - (morton_b & X_MASK)) & X_MASK) |
+        (llabs((morton_a & Y_MASK) - (morton_b & Y_MASK)) & Y_MASK);
+}
+
+static int
+_morton_to_latlon(
+    unsigned long long morton_number,
+    double*            lat,
+    double*            lon
+    )
+{
+    unsigned int lat_norm = 0;
+    unsigned int lon_norm = 0;
+    unsigned int i        = 0;
+
+    /* check pointers */
+    if ( (lat == NULL) ||
+        (lon == NULL)
+        )
+    {
+        return -1;
+    }
+
+    /* de-interleave bits */
+    for (i = 0; i < sizeof(lat_norm) * CHAR_BIT; i++)
+    {
+        lat_norm |= (unsigned int)(((morton_number >> (i*2)) & 0x1) << i);
+        lon_norm |= (unsigned int)(((morton_number >> (i*2+1)) & 0x1) << i);
+    }
+
+    /* de-normalize to doubles */
+    *lat = (lat_norm / 10000000.0) - 90;
+    *lon = (lon_norm / 10000000.0) - 180;
+
+    return 0;
+}
+
+static int
+_latlon_to_morton(
+    double              lat,
+    double              lon,
+    unsigned long long* morton_number
+    )
+{
+    unsigned int lat_norm = 0;
+    unsigned int lon_norm = 0;
+    unsigned int i        = 0;
+
+    /* check pointers */
+    if (morton_number == NULL)
+    {
+        return -1;
+    }
+
+    /* check bounds */
+    if ( (lat < -90) ||
+        (lat > 90) ||
+        (lon < -180) ||
+        (lon > 180)
+        )
+    {
+        return -1;
+    }
+
+    /* normalize to integers */
+    lat_norm = (unsigned int)((lat + 90)*10000000);
+    lon_norm = (unsigned int)((lon + 180)*10000000);
+
+    /* interleave bits */
+    for (i = 0; i < sizeof(lat_norm) * CHAR_BIT; i++)
+    {
+        *morton_number |= (unsigned long long)((lat_norm & (0x1 << i))) << i;
+        *morton_number |= (unsigned long long)((lon_norm & (0x1 << i))) << (i+1);
+    }
+
+    return 0;
+}
 
 static int
 _get_bounding_box(
@@ -168,6 +283,10 @@ int test_coord(double lat, double lon)
     double lon_e_deg = 0;
 
     double i         = 0;
+    
+    unsigned long long morton    = 0;
+    unsigned long long morton_sw = 0;
+    unsigned long long morton_ne = 0;
 
     for (i = .01; i <= 1000.0; i = i * 10.0)
     {
@@ -182,14 +301,27 @@ int test_coord(double lat, double lon)
             );
         if (error == 0)
         {
-            printf("Bounding box for (%3.7f, %3.7f) with distance %3.7f km:\n(%3.7f, %3.7f)\n(%3.7f, %3.7f)\n\n",
-                lat,
-                lon,
-                i,
+            _latlon_to_morton(lat, lon, &morton);
+            _latlon_to_morton(lat_s_deg, lon_w_deg, &morton_sw);
+            _latlon_to_morton(lat_n_deg, lon_e_deg, &morton_ne);
+
+            printf("Bounding box with distance %8.3fkm [             morton # :    distance to center]\n", i);
+            printf("sw:       (% 11.7f,% 12.7f): [%21llu : %21llu]\n",
                 lat_s_deg,
                 lon_w_deg,
+                morton_sw,
+                _get_morton_distance(morton_sw, morton)
+                );
+            printf("center:   (% 11.7f,% 12.7f): [%21llu]\n",
+                lat,
+                lon,
+                morton
+                );
+            printf("ne:       (% 11.7f,% 12.7f): [%21llu : %21llu]\n\n",
                 lat_n_deg,
-                lon_e_deg
+                lon_e_deg,
+                morton_ne,
+                _get_morton_distance(morton, morton_ne)
                 );
         }
         else
@@ -203,12 +335,17 @@ int test_coord(double lat, double lon)
 
 int main(int argc, char** argv)
 {
-    int    error     = 0;
+    int error = 0;
 
     /* the following code should generate output matching the reference file */
     error = test_coord(37.7749295, -122.4194155);
     error = test_coord(-90, -180);
     error = test_coord(0, -180);
+    error = test_coord(-90, 0);
+    error = test_coord(0, 0);
+    error = test_coord(90, 0);
+    error = test_coord(0, 180);
+    error = test_coord(90, 180);
 
     return error;
 }
@@ -245,16 +382,16 @@ get_geo_bounds(
     )
     VALUE self, center_lat, center_lon, radius;
 {
-    int       error          = 0;
+    int    error          = 0;
 
-    double    lat_s_deg      = 0.0;
-    double    lon_w_deg      = 0.0;
-    double    lat_n_deg      = 0.0;
-    double    lon_e_deg      = 0.0;
+    double lat_s_deg      = 0.0;
+    double lon_w_deg      = 0.0;
+    double lat_n_deg      = 0.0;
+    double lon_e_deg      = 0.0;
 
-    double    dbl_center_lat = 0.0;
-    double    dbl_center_lon = 0.0;
-    double    dbl_radius     = 0.0;
+    double dbl_center_lat = 0.0;
+    double dbl_center_lon = 0.0;
+    double dbl_radius     = 0.0;
 
     dbl_center_lat = RFLOAT(rb_Float(center_lat))->value;
     dbl_center_lon = RFLOAT(rb_Float(center_lon))->value;
@@ -283,8 +420,122 @@ get_geo_bounds(
     return 0;
 }
 
+/*
+ * latlon_to_morton()
+ *
+ * Convert latitude, longitude to a Morton number.
+ *
+ * Parameters:
+ *  lat: latitude in decimal degrees
+ *  lon: longitude in decimal degrees
+ *
+ * Output:
+ *  64-bit Morton number corresponding to the lat, lon
+ */
+static VALUE
+latlon_to_morton(
+    self,
+    lat,
+    lon
+    )
+    VALUE self, lat, lon;
+{
+    int    error   = 0;
+
+    double dbl_lat = 0.0;
+    double dbl_lon = 0.0;
+
+    unsigned long long morton = 0;
+
+    dbl_lat = RFLOAT(rb_Float(lat))->value;
+    dbl_lon = RFLOAT(rb_Float(lon))->value;
+
+    error = _latlon_to_morton(
+        dbl_lat,
+        dbl_lon,
+        &morton
+        );
+    if (error == 0)
+    {
+        return rb_float_new(morton);
+    }
+
+    return 0;
+}
+
+/*
+ * morton_to_latlon()
+ *
+ * Convert a Morton number to latitude and longitude.
+ *
+ * Parameters:
+ *  morton: 64-bit Morton number
+ *
+ * Output:
+ *  2-element array of latitude and longitude
+ */
+static VALUE
+morton_to_latlon(
+    self,
+    morton
+    )
+    VALUE self, morton;
+{
+    int    error    = 0;
+
+    double dbl_lat = 0.0;
+    double dbl_lon = 0.0;
+
+    error = _morton_to_latlon(
+        morton,
+        &dbl_lat,
+        &dbl_lon
+        );
+    if (error == 0)
+    {
+        return rb_ary_new3(
+            2,
+            rb_float_new(dbl_lat),
+            rb_float_new(dbl_lon)
+            );
+    }
+
+    return 0;
+}
+
+/*
+ * get_morton_distance()
+ *
+ * Calculate the distance between two Morton numbers.
+ *
+ * Parameters:
+ *  morton_a: first 64-bit Morton number
+ *  morton_b: second 64-bit Morton number
+ *
+ * Output:
+ *  64-bit integer representing the Morton distance
+ */
+static VALUE
+get_morton_distance(
+    self,
+    morton_a,
+    morton_b
+    )
+    VALUE self, morton_a, morton_b;
+{
+    return rb_float_new(
+        _get_morton_distance(
+            RFLOAT(rb_Float(morton_a))->value,
+            RFLOAT(rb_Float(morton_b))->value
+            )
+        );
+}
+
 void Init_GeoBounds()
 {
     cGeoBounds = rb_define_class("GeoBounds", rb_cObject);
     rb_define_method(cGeoBounds, "get_geo_bounds", get_geo_bounds, 3);
+    rb_define_method(cGeoBounds, "latlon_to_morton", latlon_to_morton, 2);
+    rb_define_method(cGeoBounds, "morton_to_latlon", morton_to_latlon, 1);
+    rb_define_method(cGeoBounds, "get_morton_distance", get_morton_distance, 2);
 }
